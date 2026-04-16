@@ -527,7 +527,7 @@ async def run(ctx,verbose,adapter,log_output,debug,address,force_disconnect, dev
     
     logging_level = None
     if verbose:
-        logging_level = logging.DEBUG if debug else logging.DEBUG
+        logging_level = logging.DEBUG if debug else logging.INFO
         
     logging_filename = log_output
     logging.basicConfig(level=logging_level,
