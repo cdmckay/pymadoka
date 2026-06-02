@@ -14,8 +14,6 @@ setup(
     install_requires=[
         'click',
         'bleak',
-        'pyyaml',
-        'asyncio-mqtt'
     ],
     entry_points='''
         [console_scripts]
