@@ -157,8 +157,14 @@ class Connection(TransportDelegate):
                 await asyncio.sleep(2.0)       
             except ConnectionAbortedError as e:
                 self.connection_status = ConnectionStatus.ABORTED
-            except CancelledError as e:
-                logger.error(str(e))  
+            except CancelledError:
+                # Propagate cancellation so asyncio.wait_for() and config-entry
+                # unload can actually stop this reconnect loop. This used to be
+                # swallowed, which made start() uncancellable and hung Home
+                # Assistant's setup forever when the device was reachable (in
+                # the BLE scan) but not connectable.
+                self.connection_status = ConnectionStatus.DISCONNECTED
+                raise
             except Exception as e:
                 self.connection_status = ConnectionStatus.ABORTED
     async def _connect(self):
