@@ -21,10 +21,11 @@ from pymadoka.connection import Connection, ConnectionStatus
 async def _scenario():
     conn = Connection("00:11:22:33:44:55", adapter="hci0", reconnect=True)
 
-    # "Discoverable but never connects": a client exists and _connect is a no-op
-    # that never reaches CONNECTED, so start()'s loop would otherwise spin
-    # forever. wait_for() must be able to cancel it.
-    conn.client = object()
+    # "Discoverable but never connects": a device was found (so start()'s loop
+    # takes the _connect branch) and _connect is a no-op that never reaches
+    # CONNECTED, so the loop would otherwise spin forever. wait_for() must be
+    # able to cancel it.
+    conn.ble_device = object()
 
     async def _never_connects():
         return

@@ -10,6 +10,7 @@ import sys
 from enum import Enum
 
 from bleak import BleakClient,BleakScanner
+from bleak_retry_connector import establish_connection
 from typing import Dict
 
 from pymadoka.transport import Transport, TransportDelegate
@@ -114,6 +115,8 @@ class Connection(TransportDelegate):
         self.adapter = adapter
         self.address = address
         self.name = self.address
+        self.client = None
+        self.ble_device = None
         self.connection_status = ConnectionStatus.DISCONNECTED
         self.last_info = None
         self.transport = Transport(self)
@@ -150,11 +153,11 @@ class Connection(TransportDelegate):
         while (not self.connection_status == ConnectionStatus.CONNECTED and 
                not self.connection_status == ConnectionStatus.ABORTED):
             try:
-                if self.client:
+                if self.ble_device:
                     await self._connect()
                 else:
                     await self._select_device()
-                await asyncio.sleep(2.0)       
+                await asyncio.sleep(2.0)
             except ConnectionAbortedError as e:
                 self.connection_status = ConnectionStatus.ABORTED
             except CancelledError:
@@ -169,39 +172,43 @@ class Connection(TransportDelegate):
                 self.connection_status = ConnectionStatus.ABORTED
     async def _connect(self):
         try:
-            connected = self.client.is_connected
-            if not connected:
-                await self.client.connect()
-                connected = self.client.is_connected
-                
-            if connected:
-                logger.info(F"Connected to {self.address}")
-                # self.client.set_disconnected_callback(self.on_disconnect)
-                self.connection_status = ConnectionStatus.CONNECTED
-                await self.client.start_notify(
-                    NOTIFY_CHAR_UUID, self.notification_handler,
-                )
-            else:
-                logger.info(f"Failed to connect to {self.address}")
-                
+            # Use bleak-retry-connector instead of a raw BleakClient.connect().
+            # Inside Home Assistant this reserves a connection slot via the
+            # central manager and serializes attempts, which avoids the
+            # org.bluez InProgress / br-connection-canceled race that otherwise
+            # wedges the link at ~1 failed connect/sec. It also retries with
+            # backoff and works standalone (outside HA) against vanilla bleak.
+            self.client = await establish_connection(
+                BleakClient,
+                self.ble_device,
+                self.name,
+                disconnected_callback=self.on_disconnect,
+            )
         except Exception as e:
             if not "Software caused connection abort" in str(e):
                 logger.error(e)
             if not self.reconnect:
                 raise e
             logger.debug("Reconnecting...")
+            return
+
+        logger.info(F"Connected to {self.address}")
+        self.connection_status = ConnectionStatus.CONNECTED
+        await self.client.start_notify(
+            NOTIFY_CHAR_UUID, self.notification_handler,
+        )
 
     async def _select_device(self):
         """Scan bluetooth devices searching for the thermostat address so it is registered in the DBUS and available to the client.
         """
         logger.debug("Bluetooh LE hardware warming up...")
-    
+
         for d in DISCOVERED_DEVICES_CACHE:
-            if d.address.upper() == self.address.upper(): 
-                self.client = BleakClient(d, adapter = self.adapter, disconnected_callback=self.on_disconnect)
-                self.name = d.name
+            if d.address.upper() == self.address.upper():
+                self.ble_device = d
+                self.name = d.name or self.address
                 break
-        if self.client == None:
+        if self.ble_device is None:
             self.connection_status = ConnectionStatus.ABORTED
             raise ConnectionAbortedError(f"Could not find bluetooth device for the address {self.address}. Please follow the instructions on device pairing.")
 
