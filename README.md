@@ -1,3 +1,15 @@
+> [!IMPORTANT]
+> ## ⚠️ Archived — superseded by [ha-daikin-madoka](https://github.com/cdmckay/ha-daikin-madoka)
+>
+> This repository has been merged into
+> **[cdmckay/ha-daikin-madoka](https://github.com/cdmckay/ha-daikin-madoka)** — a
+> single, self-contained Home Assistant integration with the `pymadoka` BLE
+> library vendored inside it. The BLE handling was rewritten to use Home
+> Assistant's own Bluetooth stack (`async_ble_device_from_address` +
+> `bleak-retry-connector`) instead of running its own scanner, which fixes the
+> `org.bluez InProgress` wedge. This repo is now read-only; please use
+> **ha-daikin-madoka** instead.
+
 # PyMadoka
 
 This library has been written to control the thermostat Daikin BRC1H family without the need to use the mobile Madoka apps.
